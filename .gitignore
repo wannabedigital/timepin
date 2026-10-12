@@ -1,0 +1,25 @@
+# Системные файлы
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Зависимости и сборка (появятся на этапе 6.2)
+node_modules/
+dist/
+out/
+build/
+.vite/
+*.log
+
+# Секреты и локальные настройки
+.env
+.env.*
+*.local
+.claude/settings.local.json
+
+# Python (сервер, этап 6.2)
+__pycache__/
+*.pyc
+.venv/
+*.sqlite3
+*.db

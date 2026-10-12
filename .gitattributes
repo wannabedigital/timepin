@@ -1,0 +1,12 @@
+# Единые переводы строк: на Windows git по умолчанию подставляет CRLF и ломает bash-скрипты.
+* text=auto eol=lf
+*.sh text eol=lf
+*.mjs text eol=lf
+*.md text eol=lf
+
+# Бинарные файлы
+*.png binary
+*.jpg binary
+*.pdf binary
+*.mp4 binary
+*.mov binary
