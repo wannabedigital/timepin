@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>S2: точность перемотки</title>
+<style>
+  body { font: 14px system-ui, sans-serif; margin: 16px; max-width: 980px; }
+  video { width: 640px; background: #000; display: block; margin: 8px 0; }
+  button, select { font: inherit; margin-right: 8px; }
+  pre { background: #f4f4f4; padding: 8px; overflow: auto; max-height: 420px; }
+  #status { font-weight: 600; }
+  table { border-collapse: collapse; } td, th { border: 1px solid #bbb; padding: 3px 8px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+</style>
+</head>
+<body>
+<h3>S2: точность перемотки и номера кадров</h3>
+<div>
+  <select id="sel"></select>
+  <button id="one">Прогнать выбранное</button>
+  <button id="all">Прогнать все</button>
+  <button id="frames">Кадры или мс (все)</button>
+  <span id="status">готово</span>
+</div>
+<video id="v" muted playsinline preload="auto"></video>
+<canvas id="c" hidden></canvas>
+<div id="tbl"></div>
+<pre id="log"></pre>
+<script>
+'use strict';
+const v = document.getElementById('v');
+const cvs = document.getElementById('c');
+const ctx = cvs.getContext('2d', { willReadFrequently: true });
+const $ = (id) => document.getElementById(id);
+const log = (s) => { $('log').textContent += s + '\n'; };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const HAS_RVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+
+// ---- чтение номера кадра из блоков в углу кадра ----
+function decodeIndex() {
+  const w = v.videoWidth, h = v.videoHeight;
+  if (!w) return -1;
+  cvs.width = w; cvs.height = h;
+  ctx.drawImage(v, 0, 0, w, h);
+  const row = ctx.getImageData(0, 12, 384, 1).data;
+  let n = 0;
+  for (let i = 0; i < 16; i++) {
+    const px = (i * 24 + 12) * 4;
+    const luma = 0.299 * row[px] + 0.587 * row[px + 1] + 0.114 * row[px + 2];
+    if (luma > 128) n |= (1 << i);
+  }
+  return n;
+}
+
+// ---- ожидаемый кадр для момента T: последний кадр с временем показа <= T ----
+function makeTruth(t) {
+  const fps = t.srcFpsNum / t.srcFpsDen;
+  const pts = t.pts;
+  const idx = (T) => {              // индекс в pts: последний с pts <= T + eps
+    let lo = 0, hi = pts.length - 1, r = 0;
+    while (lo <= hi) { const m = (lo + hi) >> 1; if (pts[m] <= T + 1e-4) { r = m; lo = m + 1; } else hi = m - 1; }
+    return r;
+  };
+  // nIdx — зашитые в кадры номера (нужен, если кадры дублировались и номер не равен время*частота)
+  const nOf = (i) => (t.nIdx ? t.nIdx[i] : Math.round(pts[i] * fps));
+  return { fps, pts, keys: t.keys, idx, nOf, expected: (T) => nOf(idx(T)) };
+}
+
+// ---- перемотка и ожидание показанного кадра ----
+async function seek(T, tmo = 1500) {
+  const t0 = performance.now();
+  let meta = null;
+  const framePromise = HAS_RVFC ? new Promise((res) => v.requestVideoFrameCallback((now, m) => { meta = m; res(); })) : Promise.resolve();
+  const seeked = new Promise((res) => v.addEventListener('seeked', res, { once: true }));
+  v.currentTime = T;
+  // Перемотка на текущую позицию (например, 0 сразу после загрузки) может не вызвать seeked: таймаут.
+  await Promise.race([seeked, sleep(3000)]);
+  await Promise.race([framePromise, sleep(tmo)]);
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  return { latency: performance.now() - t0, meta, currentTime: v.currentTime, n: decodeIndex() };
+}
+
+function rng(seed) { let s = seed >>> 0; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : NaN; };
+const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(s.length * p))] : NaN; };
+
+async function runVariant(name) {
+  $('status').textContent = 'идёт: ' + name;
+  const truth = makeTruth(await (await fetch(`/out/${name}.truth.json`)).json());
+  v.src = `/out/${name}.mp4`;
+  await new Promise((res, rej) => { v.addEventListener('loadeddata', res, { once: true }); v.addEventListener('error', () => rej(v.error), { once: true }); });
+  const dur = truth.pts[truth.pts.length - 1];
+  const R = rng(12345);
+  const frame = 1 / truth.fps;
+
+  // 1. перемотка: точное время кадра, середина между кадрами, около ключевых, случайные, края
+  const targets = [];
+  for (let k = 0; k < 40; k++) { const i = Math.floor(R() * (truth.pts.length - 2)) + 1; targets.push(['frame', truth.pts[i]]); }
+  for (let k = 0; k < 20; k++) { const i = Math.floor(R() * (truth.pts.length - 2)) + 1; targets.push(['mid', (truth.pts[i] + truth.pts[i + 1]) / 2]); }
+  for (let k = 0; k < 20; k++) { const kt = truth.keys[Math.floor(R() * truth.keys.length)]; targets.push(['key-0.001', Math.max(0, kt - 0.001)]); targets.push(['key', kt]); }
+  for (let k = 0; k < 20; k++) targets.push(['ms', Math.round(R() * dur * 1000) / 1000]);
+  targets.push(['start', 0], ['end', dur], ['end-0.1', dur - 0.1]);
+
+  const seeks = [];
+  for (const [kind, T] of targets) {
+    const r = await seek(T);
+    const exp = truth.expected(T);
+    seeks.push({ kind, T, expected: exp, got: r.n, err: r.n - exp, latency: r.latency, currentTime: r.currentTime, mediaTime: r.meta ? r.meta.mediaTime : null });
+  }
+  const errs = seeks.map((s) => s.err);
+  const wrong = seeks.filter((s) => s.err !== 0);
+
+  // 2. шаг на кадр вперёд тремя способами
+  const stepMethods = {};
+  const start = truth.idx(10);
+  for (const method of ['plus-1/fps', 'pts-next', 'pts-mid']) {
+    await seek(truth.pts[start]);
+    let ok = 0, total = 30, i = start;
+    for (let s = 0; s < total; s++) {
+      let T;
+      if (method === 'plus-1/fps') T = v.currentTime + frame;
+      else if (method === 'pts-next') T = truth.pts[i + 1];
+      else T = (truth.pts[i + 1] + truth.pts[i + 2]) / 2; // середина интервала показа следующего кадра
+      const before = decodeIndex();
+      const r = await seek(T);
+      i += 1;
+      if (r.n === before + 1 || (truth.nOf(i) === r.n)) ok++;
+      if (method === 'plus-1/fps' && r.n !== truth.nOf(i)) i = truth.idx(v.currentTime);
+    }
+    stepMethods[method] = `${ok}/${total}`;
+  }
+
+  // 3. воспроизведение 4 секунды: сопоставление времени из обработчика кадров с номером кадра
+  const play = { frames: 0, mismatches: 0, gaps: 0, hasRvfc: HAS_RVFC };
+  await seek(5);
+  if (HAS_RVFC) {
+    let last = null;
+    const cb = (now, m) => {
+      const n = decodeIndex();
+      play.frames++;
+      if (n !== truth.expected(m.mediaTime)) play.mismatches++;
+      if (last !== null && n - last > 1 && truth.fps) play.gaps++;
+      last = n;
+      if (!v.paused) v.requestVideoFrameCallback(cb);
+    };
+    v.requestVideoFrameCallback(cb);
+    try { await v.play(); await sleep(4000); v.pause(); } catch (e) { play.error = String(e); }
+    await sleep(100);
+  }
+
+  return {
+    variant: name, fps: truth.fps, frames: truth.pts.length, keyframes: truth.keys.length,
+    seeks: { count: seeks.length, exact: seeks.length - wrong.length, maxAbsErr: Math.max(...errs.map(Math.abs)),
+      latencyMedian: median(seeks.map((s) => s.latency)), latencyP95: pct(seeks.map((s) => s.latency), 0.95),
+      wrongByKind: wrong.reduce((a, s) => { a[s.kind] = (a[s.kind] ?? 0) + 1; return a; }, {}), wrongExamples: wrong.slice(0, 6) },
+    step: stepMethods, play,
+  };
+}
+
+
+// ---- сравнение способов хранения и перемотки: миллисекунды и номер кадра ----
+async function runFrames(name) {
+  $('status').textContent = 'кадры: ' + name;
+  const truth = makeTruth(await (await fetch(`/out/${name}.truth.json`)).json());
+  v.src = `/out/${name}.mp4`;
+  await new Promise((res, rej) => { v.addEventListener('loadeddata', res, { once: true }); v.addEventListener('error', () => rej(v.error), { once: true }); });
+  const fps = truth.fps, N = truth.pts.length;
+  const R = rng(777);
+  const picks = [0, 1, N - 2];
+  for (let k = 0; k < 120; k++) picks.push(1 + Math.floor(R() * (N - 3)));
+
+  // слот (номер кадра в постоянной сетке) для k-го кадра истины
+  const slotOf = (k) => Math.round(truth.pts[k] * fps);
+  const methods = {
+    'ms-round':    (i) => Math.round(1000 * i / fps) / 1000,
+    'ms-floor':    (i) => Math.floor(1000 * i / fps) / 1000,
+    'ms-ceil':     (i) => Math.ceil(1000 * i / fps) / 1000,
+    'frame-start': (i) => i / fps,
+    'frame-mid':   (i) => (i + 0.5) / fps,
+  };
+  const seekRes = {};
+  for (const [mname, f] of Object.entries(methods)) {
+    let ok = 0; const wrong = [];
+    $('status').textContent = `кадры: ${name}, ${mname}`;
+    for (const k of picks) {
+      const i = slotOf(k);
+      const r = await seek(f(i), 250);
+      if (r.n === truth.nOf(k)) ok++; else if (wrong.length < 4) wrong.push({ k, i, got: r.n, exp: truth.nOf(k) });
+    }
+    seekRes[mname] = { ok, total: picks.length, wrong };
+  }
+
+  // шаг на кадр вперёд и назад от случайного кадра: номер +-1 в постоянной сетке (frame-mid)
+  const step = { fwdOk: 0, backOk: 0, total: 0 };
+  for (let t = 0; t < 40; t++) {
+    const k = 5 + Math.floor(R() * (N - 12));
+    await seek((slotOf(k) + 0.5) / fps, 250);
+    const a = await seek((slotOf(k) + 1.5) / fps, 250);
+    if (a.n === truth.nOf(k + 1)) step.fwdOk++;
+    const b = await seek((slotOf(k) - 0.5) / fps, 250);
+    if (b.n === truth.nOf(k - 1)) step.backOk++;
+    step.total++;
+  }
+
+  // сохранение номера при паузе: пользователь останавливает воспроизведение и ставит комментарий
+  const pause = { trials: 0, byMediaTimeRound: 0, byCurrentTimeFloor: 0, byCurrentTimeRound: 0, noMeta: 0, examples: [] };
+  if (HAS_RVFC) {
+    for (let t = 0; t < 12; t++) {
+      const start = 2 + R() * 40;
+      await seek(start, 250);
+      let last = null;
+      const cb = (now, m) => { last = m; if (!v.paused) v.requestVideoFrameCallback(cb); };
+      v.requestVideoFrameCallback(cb);
+      try { await v.play(); } catch (e) { pause.error = String(e); break; }
+      await sleep(300 + R() * 1200);
+      v.pause();
+      await sleep(200);
+      const shown = decodeIndex();
+      // Что сохранил бы продукт: слот i в постоянной сетке; проверяем, что кадр слота i и есть показанный.
+      const slotMatches = (i) => i >= 0 && i < N && truth.nOf(i) === shown;
+      const mt = last ? Math.round(last.mediaTime * fps) : null;
+      const cf = Math.floor(v.currentTime * fps + 1e-9);
+      const cr = Math.round(v.currentTime * fps);
+      pause.trials++;
+      if (mt === null) pause.noMeta++; else if (slotMatches(mt)) pause.byMediaTimeRound++;
+      if (slotMatches(cf)) pause.byCurrentTimeFloor++;
+      if (slotMatches(cr)) pause.byCurrentTimeRound++;
+      if (pause.examples.length < 3) pause.examples.push({ shown, mediaTime: last && last.mediaTime, currentTime: v.currentTime, mt, cf, cr });
+    }
+  }
+  return { variant: name, fps, frames: N, seek: seekRes, step, pause };
+}
+
+async function runFramesAll(names) {
+  $('log').textContent = '';
+  const results = [];
+  for (const n of names) { try { results.push(await runFrames(n)); } catch (e) { log(`${n}: ОШИБКА ${e && (e.message || e)}`); } }
+  const out = { kind: 'frames', when: new Date().toISOString(), userAgent: navigator.userAgent, platform: navigator.platform, requestVideoFrameCallback: HAS_RVFC, results };
+  window.__results = out;
+  log(JSON.stringify(out.results.map((r) => ({ v: r.variant, seek: Object.fromEntries(Object.entries(r.seek).map(([k, x]) => [k, `${x.ok}/${x.total}`])), step: r.step, pause: r.pause })), null, 1));
+  try { const r = await fetch('/result', { method: 'POST', body: JSON.stringify(out, null, 1) }); log('сохранено: ' + await r.text()); } catch (e) { log('не сохранено: ' + e); }
+  $('status').textContent = 'готово';
+}
+
+function render(results) {
+  const rows = results.map((r) => `<tr><td>${r.variant}</td><td>${r.fps.toFixed(3)}</td><td>${r.keyframes}</td>` +
+    `<td>${r.seeks.exact}/${r.seeks.count}</td><td>${r.seeks.maxAbsErr}</td><td>${r.seeks.latencyMedian.toFixed(0)}</td><td>${r.seeks.latencyP95.toFixed(0)}</td>` +
+    `<td>${r.step['plus-1/fps']}</td><td>${r.step['pts-next']}</td><td>${r.step['pts-mid']}</td><td>${r.play.mismatches}/${r.play.frames}</td></tr>`).join('');
+  $('tbl').innerHTML = `<table><tr><th>видео</th><th>к/с</th><th>ключ.</th><th>точно</th><th>макс. ошибка, кадров</th><th>задержка med, мс</th><th>p95, мс</th><th>шаг +1/fps</th><th>шаг pts</th><th>шаг mid</th><th>воспр.: несовп.</th></tr>${rows}</table>`;
+}
+
+async function runAll(names) {
+  $('log').textContent = '';
+  const results = [];
+  for (const n of names) { try { results.push(await runVariant(n)); render(results); } catch (e) { log(`${n}: ОШИБКА ${e && (e.message || e.code || e)}`); } }
+  const out = { when: new Date().toISOString(), userAgent: navigator.userAgent, platform: navigator.platform, requestVideoFrameCallback: HAS_RVFC, results };
+  window.__results = out;
+  log(JSON.stringify(out.results.map((r) => ({ v: r.variant, seeks: r.seeks, step: r.step, play: r.play })), null, 1));
+  try { const r = await fetch('/result', { method: 'POST', body: JSON.stringify(out, null, 1) }); log('сохранено: ' + await r.text()); } catch (e) { log('не сохранено: ' + e); }
+  $('status').textContent = 'готово';
+  return out;
+}
+
+(async () => {
+  const names = await (await fetch('/manifest.json')).json();
+  $('sel').innerHTML = names.map((n) => `<option>${n}</option>`).join('');
+  $('one').onclick = () => runAll([$('sel').value]);
+  $('all').onclick = () => runAll(names);
+  $('frames').onclick = () => runFramesAll(names);
+  const q = new URLSearchParams(location.search);
+  const list = q.get('auto') === '1' ? names : (q.get('auto') ?? '').split(',').filter(Boolean);
+  if (q.get('auto')) (q.get('mode') === 'frames' ? runFramesAll(list) : runAll(list));
+})();
+</script>
+</body>
+</html>
