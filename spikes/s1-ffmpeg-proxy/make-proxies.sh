@@ -4,6 +4,7 @@
 #   H.264 High, yuv420p (8 бит), AAC 128k, MP4 с faststart.
 set -euo pipefail
 cd "$(dirname "$0")"
+mkdir -p out
 SRC=media/src-1080p30-10min.mp4
 CSV=out/timings.csv
 echo "variant,source,seconds" > "$CSV"

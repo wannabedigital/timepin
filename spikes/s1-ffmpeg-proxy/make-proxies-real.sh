@@ -5,6 +5,7 @@
 # Результат: out/real-results.csv (вариант, время, размер, VMAF среднее и 1-й процентиль)
 set -euo pipefail
 cd "$(dirname "$0")"
+mkdir -p out
 SRC=$1
 BASE=$(basename "${SRC%.*}")
 CSV=out/real-results.csv

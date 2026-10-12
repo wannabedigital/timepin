@@ -2,7 +2,9 @@
 // Проверяет: прогресс в процентах, мягкую отмену ('q'), жёсткую отмену (SIGKILL), ошибку.
 // Использование: node node-run.mjs progress|cancel-soft|cancel-hard|error
 import { spawn, execFileSync } from 'node:child_process';
-import { existsSync, statSync, rmSync } from 'node:fs';
+import { existsSync, statSync, rmSync, mkdirSync } from 'node:fs';
+
+mkdirSync('out', { recursive: true });
 
 const SRC = 'media/src-1080p30-10min.mp4';
 const mode = process.argv[2] ?? 'progress';

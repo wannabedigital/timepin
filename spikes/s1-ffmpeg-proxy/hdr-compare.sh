@@ -12,7 +12,8 @@ HAVE_REF=0
 if command -v avconvert >/dev/null 2>&1; then   # эталон есть только на macOS
   avconvert -s "$SRC" -p Preset1280x720 -o out/hdr/apple-ref.mp4 --replace >/dev/null && HAVE_REF=1
 fi
-TM() { echo "zscale=t=linear:npl=$1,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=$2:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p,scale=-2:720"; }
+# Масштабирование до 720p стоит ПЕРЕД переводом цвета: так цвет считается на 720p, а не на 4K (в 2 раза быстрее).
+TM() { echo "scale=-2:720,zscale=t=linear:npl=$1,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=$2:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p"; }
 VARIANTS=(
   "naive|scale=-2:720"
   "zscale-direct|zscale=t=bt709:p=bt709:m=bt709:r=tv:npl=100,format=yuv420p,scale=-2:720"
