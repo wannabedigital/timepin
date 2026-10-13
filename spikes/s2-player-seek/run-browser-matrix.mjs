@@ -80,6 +80,12 @@ const killTree = (child) => {
   else { try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); } }
 };
 
+// Windows: убить дерево процессов Firefox с данным профилем (pid запускателя уже не существует).
+function killByProfile(profile) {
+  const ps = `Get-CimInstance Win32_Process -Filter "Name='firefox.exe'" | Where-Object { $_.CommandLine -like '*${profile.replace(/'/g, "''")}*' -and $_.CommandLine -notlike '*-contentproc*' } | ForEach-Object { taskkill /PID $_.ProcessId /T /F | Out-Null }`;
+  spawnSync('powershell', ['-NoProfile', '-Command', ps]);
+}
+
 function urls() {
   const list = variants.join(',');
   const u = [];
@@ -113,13 +119,18 @@ async function runOne(browser, url) {
     await sleep(5000);
     const fresh = resultFiles().filter((f) => !before.has(f));
     if (fresh.length) { file = fresh[0]; break; }
-    if (child.exitCode !== null && browser !== 'safari' && Date.now() - t0 > 30_000) {
+    // На Windows firefox.exe передаёт работу отдельному процессу и выходит с кодом 0: это не конец теста.
+    const launcherExit = browser === 'firefox' && process.platform === 'win32';
+    if (child.exitCode !== null && browser !== 'safari' && !launcherExit && Date.now() - t0 > 30_000) {
       console.error(`${browser}: процесс завершился без результата (код ${child.exitCode})`);
       break;
     }
   }
   if (browser === 'safari') spawnSync('osascript', ['-e', 'tell application "Safari" to close front window']);
-  else killTree(child);
+  else {
+    killTree(child);
+    if (browser === 'firefox' && process.platform === 'win32') killByProfile(profile);
+  }
   await sleep(1500);
   try { fs.rmSync(profile, { recursive: true, force: true }); } catch { /* профиль занят, пропустить */ }
   if (file) {
