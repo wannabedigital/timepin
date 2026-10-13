@@ -101,7 +101,7 @@ async function runOne(browser, url) {
   let child = null, cmd, args;
   if (browser === 'chrome' || browser === 'edge') {
     cmd = found[browser];
-    args = [`--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--autoplay-policy=no-user-gesture-required', '--new-window', url];
+    args = [`--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--autoplay-policy=no-user-gesture-required', '--start-maximized', '--new-window', url];
   } else if (browser === 'firefox') {
     fs.writeFileSync(path.join(profile, 'user.js'),
       'user_pref("media.autoplay.default", 0);\nuser_pref("browser.shell.checkDefaultBrowser", false);\n' +
