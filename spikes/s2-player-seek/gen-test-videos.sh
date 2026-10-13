@@ -37,6 +37,7 @@ fi
 #   vfr  — сильно неравномерно выбрасываем кадры (треть и более), метки времени исходные
 #   mild — выбрасываем каждый 60-й кадр (слабая переменная частота, как у iPhone)
 #   filled — как vfr, но пропуски заполнены повтором кадра (постоянная частота, одним проходом)
+#   mildzero — как mild, но начало файла приведено к нулю (start_time=0)
 make() {
   local name=$1 rate=$2 gop=$3 vfr=${4:-}
   local vf="$BITS$TEXT" extra=()
@@ -44,6 +45,9 @@ make() {
     vf="$vf,select='not(mod(n\,7))+lt(mod(n\,5)\,3)'"; extra=(-fps_mode vfr)
   elif [ "$vfr" = mild ]; then
     vf="$vf,select='mod(n\,60)'"; extra=(-fps_mode vfr)
+  elif [ "$vfr" = mildzero ]; then
+    # Как mild, но начало приведено к нулю (первый кадр отброшен фильтром, поэтому без сдвига он был бы 1/30 с).
+    vf="$vf,select='mod(n\,60)',setpts=PTS-STARTPTS"; extra=(-fps_mode vfr)
   elif [ "$vfr" = filled ]; then
     # Те же пропуски, но заполненные повтором предыдущего кадра в той же цепочке (постоянная частота).
     vf="$vf,select='not(mod(n\,7))+lt(mod(n\,5)\,3)',fps=30"; extra=(-fps_mode cfr)
@@ -77,6 +81,13 @@ want pal25-g25     && make pal25-g25      25/1        25
 want film23976-g24 && make film23976-g24  24000/1001  24
 
 want vfrfilled30-g30 && make vfrfilled30-g30 30/1 30 filled
+
+# Начало файла приведено к нулю (setpts=PTS-STARTPTS). Номера кадров в файле смещены относительно времени,
+# поэтому истина (номера) читается с картинки готового файла.
+if want vfrmildzero30-g30; then
+  make vfrmildzero30-g30 30/1 30 mildzero
+  node real-truth.mjs out/vfrmildzero30-g30.mp4 - 30/1 out/vfrmildzero30-g30.truth.json
+fi
 
 # Для заполненного варианта номер на дубликатах — номер последнего исходного кадра (берём из истины vfr30-g30).
 if want vfrfilled30-g30; then

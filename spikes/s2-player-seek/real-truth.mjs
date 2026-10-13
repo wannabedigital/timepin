@@ -12,7 +12,7 @@ const framesJson = (f) => JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-s
   '-show_entries', 'frame=pts_time,key_frame', '-of', 'json', f], { maxBuffer: 1 << 28 }).toString()).frames
   .map((x) => ({ t: Number(x.pts_time), k: x.key_frame === 1 })).sort((a, b) => a.t - b.t);
 const fr = framesJson(out);
-const srcPts = framesJson(src).map((x) => x.t);
+const srcPts = src === '-' ? null : framesJson(src).map((x) => x.t);   // '-' — без сравнения с исходником
 
 // номера кадров с картинки: полоса 384x24 в левом верхнем углу, 1 байт на пиксель
 const W = 384, H = 24;
@@ -29,16 +29,18 @@ for (let k = 0; k < n; k++) {
 }
 
 // сдвиг: разница между временем показа кадра в файле и временем исходного кадра, в кадрах
-let min = Infinity, max = -Infinity, dup = 0, lost = 0, back = 0;
-for (let k = 0; k < n; k++) {
-  const d = (fr[k].t - srcPts[nIdx[k]]) * fps;
-  if (d < min) min = d;
-  if (d > max) max = d;
-  if (k > 0) { if (nIdx[k] === nIdx[k - 1]) dup++; if (nIdx[k] < nIdx[k - 1]) back++; }
-}
-const used = new Set(nIdx);
-lost = srcPts.length - used.size;
-console.log(`${out.split('/').pop()}: кадров ${n}, исходных ${srcPts.length}, дубликатов ${dup}, потеряно исходных ${lost}, ` +
-  `сдвиг содержимого от ${min.toFixed(2)} до ${max.toFixed(2)} кадра, возвратов номера назад ${back}`);
+if (srcPts) {
+  let min = Infinity, max = -Infinity, dup = 0, lost = 0, back = 0;
+  for (let k = 0; k < n; k++) {
+    const d = (fr[k].t - srcPts[nIdx[k]]) * fps;
+    if (d < min) min = d;
+    if (d > max) max = d;
+    if (k > 0) { if (nIdx[k] === nIdx[k - 1]) dup++; if (nIdx[k] < nIdx[k - 1]) back++; }
+  }
+  const used = new Set(nIdx);
+  lost = srcPts.length - used.size;
+  console.log(`${out.split('/').pop()}: кадров ${n}, исходных ${srcPts.length}, дубликатов ${dup}, потеряно исходных ${lost}, ` +
+    `сдвиг содержимого от ${min.toFixed(2)} до ${max.toFixed(2)} кадра, возвратов номера назад ${back}`);
+} else console.log(`${out.split('/').pop()}: кадров ${n}, начало ${fr[0].t.toFixed(4)} с`);
 
 fs.writeFileSync(dst, JSON.stringify({ srcFpsNum: num, srcFpsDen: den, pts: fr.map((x) => x.t), keys: fr.filter((x) => x.k).map((x) => x.t), nIdx }));

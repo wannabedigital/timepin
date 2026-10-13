@@ -19,7 +19,7 @@ const arg = (name, def) => { const i = process.argv.indexOf('--' + name); return
 const mode = arg('mode', 'frames');
 const wantBrowsers = arg('browsers', 'chrome,edge,firefox,safari').split(',');
 const timeoutMs = Number(arg('timeout-min', '30')) * 60_000;
-const DEFAULT_VARIANTS = 'cfr30-g30,cfr30-g250,cfr60-g60,ntsc2997-g30,iphone6s-cfr,iphone13-cfr,vfrmild30-g30,vfr30-g30';
+const DEFAULT_VARIANTS = 'cfr30-g30,cfr30-g250,cfr60-g60,ntsc2997-g30,iphone6s-cfr,iphone13-cfr,vfrmild30-g30,vfrmildzero30-g30,vfr30-g30';
 const variants = arg('variants', DEFAULT_VARIANTS).split(',');
 const PORT = 8765;
 const base = `http://127.0.0.1:${PORT}/`;
