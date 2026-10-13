@@ -22,9 +22,9 @@ export function summarize(files) {
   for (const f of files.sort()) {
     const d = JSON.parse(fs.readFileSync(f, 'utf8'));
     const key = `${browserName(d.userAgent)} (${osName(d.userAgent, d.platform)})`;
-    const rec = byBrowser.get(key) ?? { rvfc: d.requestVideoFrameCallback, frames: new Map(), main: new Map() };
+    const rec = byBrowser.get(key) ?? { rvfc: d.requestVideoFrameCallback, frames: new Map(), main: new Map(), pa: new Map() };
     rec.rvfc = d.requestVideoFrameCallback;
-    for (const r of d.results) (d.kind === 'frames' ? rec.frames : rec.main).set(r.variant, r);
+    for (const r of d.results) (d.kind === 'frames' ? rec.frames : d.kind === 'pausealign' ? rec.pa : rec.main).set(r.variant, r);
     byBrowser.set(key, rec);
   }
   const out = [];
@@ -41,6 +41,15 @@ export function summarize(files) {
         out.push(`| ${r.variant} | ${r.fps.toFixed(3)} | ${M.slice(0, 3).map(s).join(' | ')} | ${s('frame-start')} | **${s('frame-mid')}** | ` +
           `${r.step.fwdOk}/${r.step.total} · ${r.step.backOk}/${r.step.total} | ` +
           `${p.error ? 'play: ' + p.error : p.noMeta === p.trials ? 'нет meta' : `${p.byMediaTimeRound}/${p.trials}`} | ${p.byCurrentTimeFloor ?? 0} / ${p.byCurrentTimeRound ?? 0} |`);
+      }
+      out.push('');
+    }
+    if (rec.pa.size) {
+      out.push('Пауза с выравниванием (вариант A): совпало с сохранённым номером, сдвиг при выравнивании в кадрах (число случаев):', '',
+        '| Видео | к/с | совпало | нет mediaTime | сдвиг, кадров: случаи | макс. сдвиг |', '|---|---|---|---|---|---|');
+      for (const r of [...rec.pa.values()].sort((a, b) => a.variant.localeCompare(b.variant))) {
+        const j = Object.entries(r.jump).sort((a, b) => a[0] - b[0]).map(([k, c]) => `${k > 0 ? '+' : ''}${k}: ${c}`).join(', ');
+        out.push(`| ${r.variant} | ${r.fps.toFixed(3)} | ${r.alignedOk}/${r.trials}${r.playFailed ? ' (play: ' + r.playFailed + ')' : ''} | ${r.noMeta} | ${j} | ${r.jumpAbsMax} |`);
       }
       out.push('');
     }

@@ -242,6 +242,55 @@ async function runFramesAll(names) {
   $('status').textContent = 'готово';
 }
 
+// ---- вариант A целиком: пауза -> номер кадра из mediaTime -> выравнивание перемоткой на середину кадра ----
+async function runPauseAlign(name) {
+  $('status').textContent = 'пауза+выравнивание: ' + name;
+  const raw = await (await fetch(`/out/${name}.truth.json`)).json();
+  const truth = makeTruth(raw);
+  v.src = `/out/${name}.mp4`;
+  await new Promise((res, rej) => { v.addEventListener('loadeddata', res, { once: true }); v.addEventListener('error', () => rej(v.error), { once: true }); });
+  const fps = truth.fps, N = truth.pts.length;
+  const slotOfN = (n) => (raw.nIdx ? raw.nIdx.indexOf(n) : n);
+  const R = rng(4242);
+  const out = { variant: name, fps, trials: 0, noMeta: 0, alignedOk: 0, playFailed: null, jump: {}, jumpAbsMax: 0, shown: [] };
+  for (let t = 0; t < 30; t++) {
+    const startRes = await seek(2 + R() * 40, 250);
+    const slotAtStart = slotOfN(startRes.n);        // кадр, на котором плеер стоял до запуска (продукт знает его сам)
+    let last = null;
+    const cb = (now, m) => { last = m; if (!v.paused) v.requestVideoFrameCallback(cb); };
+    if (HAS_RVFC) v.requestVideoFrameCallback(cb);
+    try { await v.play(); } catch (e) { out.playFailed = String(e); break; }
+    await sleep(100 + R() * 1400);
+    v.pause();
+    await sleep(150);
+    const before = decodeIndex();                   // кадр, который пользователь видит после паузы
+    let i;
+    if (last) i = Math.round(last.mediaTime * fps);
+    else { out.noMeta++; i = slotAtStart; }         // обратный вызов не успел сработать: воспроизведение не продвинулось
+    i = Math.max(0, Math.min(N - 1, i));
+    const r = await seek((i + 0.5) / fps, 250);     // выравнивание
+    out.trials++;
+    if (r.n === truth.nOf(i)) out.alignedOk++;
+    const kBefore = slotOfN(before);
+    const j = i - kBefore;                          // на сколько кадров сдвинулось при выравнивании
+    out.jump[j] = (out.jump[j] ?? 0) + 1;
+    out.jumpAbsMax = Math.max(out.jumpAbsMax, Math.abs(j));
+    if (out.shown.length < 4) out.shown.push({ before, i, after: r.n, mediaTime: last && last.mediaTime, currentTime: v.currentTime });
+  }
+  return out;
+}
+
+async function runPauseAlignAll(names) {
+  $('log').textContent = '';
+  const results = [];
+  for (const n of names) { try { results.push(await runPauseAlign(n)); } catch (e) { log(`${n}: ОШИБКА ${e && (e.message || e)}`); } }
+  const out = { kind: 'pausealign', when: new Date().toISOString(), userAgent: navigator.userAgent, platform: navigator.platform, requestVideoFrameCallback: HAS_RVFC, results };
+  window.__results = out;
+  log(JSON.stringify(results.map((r) => ({ v: r.variant, ok: `${r.alignedOk}/${r.trials}`, jump: r.jump, noMeta: r.noMeta })), null, 1));
+  try { const r = await fetch('/result', { method: 'POST', body: JSON.stringify(out, null, 1) }); log('сохранено: ' + await r.text()); } catch (e) { log('не сохранено: ' + e); }
+  $('status').textContent = 'готово';
+}
+
 function render(results) {
   const rows = results.map((r) => `<tr><td>${r.variant}</td><td>${r.fps.toFixed(3)}</td><td>${r.keyframes}</td>` +
     `<td>${r.seeks.exact}/${r.seeks.count}</td><td>${r.seeks.maxAbsErr}</td><td>${r.seeks.latencyMedian.toFixed(0)}</td><td>${r.seeks.latencyP95.toFixed(0)}</td>` +
@@ -269,7 +318,7 @@ async function runAll(names) {
   $('frames').onclick = () => runFramesAll(names);
   const q = new URLSearchParams(location.search);
   const list = q.get('auto') === '1' ? names : (q.get('auto') ?? '').split(',').filter(Boolean);
-  if (q.get('auto')) (q.get('mode') === 'frames' ? runFramesAll(list) : runAll(list));
+  if (q.get('auto')) (q.get('mode') === 'frames' ? runFramesAll(list) : q.get('mode') === 'pausealign' ? runPauseAlignAll(list) : runAll(list));
 })();
 </script>
 </body>

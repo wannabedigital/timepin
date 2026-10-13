@@ -3,7 +3,7 @@
 // ждёт файл результатов, закрывает браузер, в конце печатает сводку в Markdown и пишет out/summary.md.
 //
 // Использование:
-//   node run-browser-matrix.mjs [--browsers chrome,edge,firefox,safari] [--mode frames|main|both]
+//   node run-browser-matrix.mjs [--browsers chrome,edge,firefox,safari] [--mode frames|main|both|pausealign]
 //                               [--variants имя1,имя2,...] [--timeout-min 30]
 // Предусловие: видео созданы (gen-test-videos.sh, make-real-test.sh), в out/ есть *.truth.json.
 import { spawn, spawnSync } from 'node:child_process';
@@ -91,6 +91,7 @@ function urls() {
   const u = [];
   if (mode === 'frames' || mode === 'both') u.push(`${base}?mode=frames&auto=${list}`);
   if (mode === 'main' || mode === 'both') u.push(`${base}?auto=${list}`);
+  if (mode === 'pausealign') u.push(`${base}?mode=pausealign&auto=${list}`);
   return u;
 }
 

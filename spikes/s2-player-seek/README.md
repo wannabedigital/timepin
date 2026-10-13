@@ -37,7 +37,7 @@ node serve.mjs                # оставить работать
 
 ## Автоматический прогон по браузерам
 
-`node run-browser-matrix.mjs` сам находит установленные браузеры (Chrome, Edge, Firefox, Safari), открывает страницу теста с чистым профилем, ждёт результат, закрывает браузер и печатает сводку (`out/summary.md`). Параметры: `--browsers chrome,edge,firefox,safari`, `--mode frames|main|both`, `--variants ...`, `--timeout-min N`. Сводка по всем накопленным результатам: `node summarize-results.mjs`.
+`node run-browser-matrix.mjs` сам находит установленные браузеры (Chrome, Edge, Firefox, Safari), открывает страницу теста с чистым профилем, ждёт результат, закрывает браузер и печатает сводку (`out/summary.md`). Параметры: `--browsers chrome,edge,firefox,safari`, `--mode frames|main|both`, `--variants ...`, `--timeout-min N`. Режим `--mode pausealign` — сквозной тест паузы (пауза, номер кадра из `mediaTime`, выравнивание, сдвиг в кадрах). Окна браузера не сворачивать: скрытая страница не получает обратных вызовов кадров. Сводка по всем накопленным результатам: `node summarize-results.mjs`.
 
 Полный прогон на новой ОС одной командой: `../run-windows-checks.sh`, инструкция для Claude Code: `../RUNBOOK-WINDOWS.md`.
 
