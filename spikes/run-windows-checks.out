@@ -1,0 +1,111 @@
+
+=== [01:04:29] env-check
+ОС: Windows_NT 10.0.19044 (x64), ядер: 16, AMD Ryzen 7 5800H with Radeon Graphics         
+Node.js: v24.21.0
+ffmpeg: ffmpeg version 9.0.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers
+ffprobe: ffprobe version 9.0.2-full_build-www.gyan.dev Copyright (c) 2007-2026 the FFmpeg developers
+GPL-сборка: да (--enable-gpl)
+кодер  libx264              есть
+кодер  libx265              есть
+кодер  aac                  есть
+кодер  h264_videotoolbox    нет
+кодер  h264_nvenc           есть
+кодер  h264_qsv             есть
+кодер  h264_amf             есть
+кодер  h264_mf              есть
+фильтр zscale               есть
+фильтр tonemap              есть
+фильтр drawtext             есть
+фильтр libvmaf              есть
+фильтр libplacebo           есть
+фильтр geq                  есть
+Обязательно для S1: libx264, aac. Для HDR: zscale. Для S2: drawtext или geq. Для качества: libvmaf.
+env-check: код выхода 0
+
+=== [01:04:30] hdr-compare
+naive: SATAVG=11.7 YAVG=141.7 SSIM (нет эталона)
+zscale-direct: SATAVG=33.9 YAVG=192.2 SSIM (нет эталона)
+mobius: SATAVG=24.9 YAVG=167.4 SSIM (нет эталона)
+hable-npl100: SATAVG=19.2 YAVG=138.3 SSIM (нет эталона)
+hable-npl200: SATAVG=15.4 YAVG=117.0 SSIM (нет эталона)
+hdr-compare: код выхода 0
+gen-test-videos: код выхода 0
+
+=== [01:09:55] make-real-test
+== iphone6s-vfr / iphone6s-cfr
+iphone6s-vfr.mp4: кадров 556, исходных 556, дубликатов 0, потеряно исходных 0, сдвиг содержимого от -0.01 до 0.16 кадра, возвратов номера назад 0
+iphone6s-cfr.mp4: кадров 556, исходных 556, дубликатов 0, потеряно исходных 0, сдвиг содержимого от -0.01 до 0.16 кадра, возвратов номера назад 0
+== iphone13-vfr / iphone13-cfr
+iphone13-vfr.mp4: кадров 1299, исходных 1299, дубликатов 0, потеряно исходных 0, сдвиг содержимого от -0.40 до 0.50 кадра, возвратов номера назад 0
+iphone13-cfr.mp4: кадров 1300, исходных 1299, дубликатов 1, потеряно исходных 0, сдвиг содержимого от -0.40 до 0.60 кадра, возвратов номера назад 0
+make-real-test: код выхода 0
+
+=== [01:13:43] browser-matrix
+Найдены браузеры: edge (C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe); firefox (C:\Program Files\Mozilla Firefox\firefox.exe)
+Будут прогнаны: edge, firefox
+
+[01:13:43] edge: http://127.0.0.1:8765/?mode=frames&auto=cfr30-g30,cfr30-g250,cfr60-g60,ntsc2997-g30,iphone6s-cfr,iphone13-cfr,vfrmild30-g30,vfr30-g30
+  результат: out/results-2026-10-12T22-23-32-382Z.json (Edge 155.0.0.0, 9.9 мин)
+
+[01:23:36] firefox: http://127.0.0.1:8765/?mode=frames&auto=cfr30-g30,cfr30-g250,cfr60-g60,ntsc2997-g30,iphone6s-cfr,iphone13-cfr,vfrmild30-g30,vfr30-g30
+firefox: процесс завершился без результата (код 0)
+  firefox: результат не получен за 40 мин
+
+### Edge 155.0.0.0 (Windows)
+
+requestVideoFrameCallback: есть
+
+Способы хранить момент (верно из 123), шаг на кадр, пауза:
+
+| Видео | к/с | мс до ближайшей | мс вниз | мс вверх | начало кадра | середина кадра | шаг впер. / назад | пауза mediaTime | пауза currentTime (вниз / ближайшей) |
+|---|---|---|---|---|---|---|---|---|---|
+| cfr30-g250 | 30.000 | 80 | 40 | 123 | 84 | **123** | 40/40 · 40/40 | 12/12 | 7 / 9 |
+| cfr30-g30 | 30.000 | 80 | 40 | 123 | 83 | **123** | 40/40 · 40/40 | 12/12 | 9 / 8 |
+| cfr60-g60 | 60.000 | 82 | 42 | 123 | 42 | **123** | 40/40 · 40/40 | 12/12 | 7 / 12 |
+| iphone13-cfr | 60.000 | 85 | 43 | 122 | 43 | **123** | 40/40 · 40/40 | 12/12 | 8 / 8 |
+| iphone6s-cfr | 29.970 | 71 | 6 | 123 | 49 | **123** | 40/40 · 40/40 | 12/12 | 9 / 7 |
+| ntsc2997-g30 | 29.970 | 66 | 5 | 123 | 32 | **123** | 40/40 · 40/40 | 12/12 | 7 / 10 |
+| vfr30-g30 | 30.000 | 85 | 43 | 122 | 81 | **122** | 28/40 · 38/40 | 0/12 | 0 / 0 |
+| vfrmild30-g30 | 30.000 | 86 | 41 | 123 | 123 | **123** | 40/40 · 40/40 | 0/12 | 0 / 0 |
+
+
+Сводка записана в out/summary.md
+browser-matrix: код выхода 0
+
+=== [01:24:08] browser-main
+Найдены браузеры: edge (C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe); firefox (C:\Program Files\Mozilla Firefox\firefox.exe)
+Будут прогнаны: edge, firefox
+
+[01:24:08] edge: http://127.0.0.1:8765/?auto=cfr30-g30,cfr30-g250,cfr60-g60,ntsc2997-g30,vfr30-g30,iphone13-cfr
+  результат: out/results-2026-10-12T22-27-59-818Z.json (Edge 155.0.0.0, 4.0 мин)
+
+[01:28:05] firefox: http://127.0.0.1:8765/?auto=cfr30-g30,cfr30-g250,cfr60-g60,ntsc2997-g30,vfr30-g30,iphone13-cfr
+firefox: процесс завершился без результата (код 0)
+  firefox: результат не получен за 20 мин
+
+### Edge 155.0.0.0 (Windows)
+
+requestVideoFrameCallback: есть
+
+Перемотка, задержка и шаг (основной тест):
+
+| Видео | к/с | точно из 123 | макс. ошибка, кадров | задержка med, мс | шаг +1/fps | шаг pts | шаг mid | воспр. несовп. |
+|---|---|---|---|---|---|---|---|---|
+| cfr30-g250 | 30.000 | 123 | 0 | 447 | 29/30 | 30/30 | 30/30 | 0/121 |
+| cfr30-g30 | 30.000 | 123 | 0 | 28 | 29/30 | 30/30 | 30/30 | 0/121 |
+| cfr60-g60 | 60.000 | 108 | 1 | 88 | 29/30 | 20/30 | 30/30 | 0/198 |
+| iphone13-cfr | 60.000 | 116 | 1 | 94 | 29/30 | 20/30 | 30/30 | 0/199 |
+| ntsc2997-g30 | 29.970 | 106 | 1 | 44 | 29/30 | 20/30 | 30/30 | 0/122 |
+| vfr30-g30 | 30.000 | 112 | 3 | 17 | 14/30 | 29/30 | 29/30 | 0/80 |
+
+
+Сводка записана в out/summary.md
+browser-main: код выхода 0
+
+=== [01:28:37] ГОТОВО (ошибки: 0). Логи: spikes/_run-logs/, сводка по всем браузерам: spikes/s2-player-seek/out/summary-all.md
+env-check: код выхода 0
+hdr-compare: код выхода 0
+gen-test-videos: код выхода 0
+make-real-test: код выхода 0
+browser-matrix: код выхода 0
+browser-main: код выхода 0
