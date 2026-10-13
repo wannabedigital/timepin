@@ -38,6 +38,7 @@ run make-real-test   ./make-real-test.sh
 # --- S2: браузеры (frames — способы хранить момент; main — задержка и шаг) ---
 run browser-matrix   node run-browser-matrix.mjs --mode frames --timeout-min 40
 run browser-main     node run-browser-matrix.mjs --mode main --variants cfr30-g30,cfr30-g250,cfr60-g60,ntsc2997-g30,vfr30-g30,iphone13-cfr --timeout-min 20
+run browser-pausealign node run-browser-matrix.mjs --mode pausealign --variants cfr30-g30,cfr60-g60,ntsc2997-g30,iphone6s-cfr,iphone13-cfr --timeout-min 20
 
 node summarize-results.mjs > out/summary-all.md 2>>"$LOG/summarize.log" || true
 step "ГОТОВО (ошибки: $FAIL). Логи: spikes/_run-logs/, сводка по всем браузерам: spikes/s2-player-seek/out/summary-all.md"
