@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ru">
+  <meta charset="utf-8" /><title>S4 · Проверка браузера</title>
+  <iframe
+    src="./"
+    title="Общий плеер"
+    style="width: 95vw; height: 70vh"
+  ></iframe>
+  <pre>Идёт проверка</pre>
+  <script type="module">
+    const view = document.querySelector("iframe");
+    const results = { browser: navigator.userAgent };
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    async function until(test) {
+      for (let i = 0; i < 300; i++) {
+        if (test()) return;
+        await wait(50);
+      }
+      throw Error("Истекло время ожидания: " + String(test));
+    }
+    try {
+      const doc = () => view.contentDocument;
+      const player = () => doc().querySelector("drawing-player");
+      const ready = () =>
+        player()?.video?.readyState >= 2 &&
+        !player().video.seeking &&
+        !player().canvas.hidden;
+      await until(ready);
+      const clip = doc().querySelector("#clip");
+      clip.value = "audio";
+      clip.dispatchEvent(new Event("change", { bubbles: true }));
+      await until(() => ready() && player().dataset.version === "audio");
+      let p = player();
+      p.video.muted = true;
+      p.seek(1800);
+      await until(() => p.frame === 1800 && ready());
+      await p.video.play();
+      await until(() => p.video.currentTime > 61);
+      p.video.pause();
+      results.audio = {
+        time: p.video.currentTime,
+        tracks: p.video.audioTracks?.length,
+        hasAudio: p.video.mozHasAudio,
+        bytes: p.video.webkitAudioDecodedByteCount,
+      };
+      results.hdr = {};
+      for (const name of ["hlg", "sdr"]) {
+        clip.value = name;
+        clip.dispatchEvent(new Event("change", { bubbles: true }));
+        await until(() => ready() && player().dataset.version === name);
+        p = player();
+        p.video.muted = true;
+        p.seek(60);
+        await until(() => p.frame === 60 && ready());
+        await p.video.play();
+        await until(() => p.video.currentTime > 1.5);
+        p.video.pause();
+        results.hdr[name] = p.video.currentTime;
+      }
+      clip.value = "numbered";
+      clip.dispatchEvent(new Event("change", { bubbles: true }));
+      await until(() => ready() && player().dataset.version === "numbered");
+      p = player();
+      p.seek(45);
+      await until(() => p.frame === 45 && ready());
+      const ref = doc().createElement("canvas");
+      ref.width = 384;
+      ref.height = 24;
+      const ctx = ref.getContext("2d");
+      ctx.drawImage(p.video, 0, 0);
+      const row = ctx.getImageData(0, 12, 384, 1).data;
+      let frame = 0;
+      for (let i = 0; i < 16; i++)
+        if (row[(24 * i + 12) * 4] > 128) frame |= 1 << i;
+      if (frame !== 45) throw Error("Показан кадр " + frame);
+      results.frame = frame;
+      const key = p.key + ":45";
+      const prior = view.contentWindow.localStorage.getItem(key);
+      try {
+        const strokes = [
+          {
+            width: 0.01,
+            color: "#dd0044",
+            points: [
+              [12 / 1280, 12 / 720],
+              [0.5, 0.5],
+            ],
+          },
+        ];
+        view.contentWindow.localStorage.setItem(
+          key,
+          JSON.stringify({ strokes }),
+        );
+        await p.load();
+        const marked = () => p.ctx.getImageData(12, 12, 1, 1).data[3] > 0;
+        if (!marked()) throw Error("Нет метки на кадре 45");
+        view.style.width = "55vw";
+        await wait(200);
+        const rect = p.canvas.getBoundingClientRect();
+        const outer = p.querySelector(".viewport").getBoundingClientRect();
+        const scale = Math.min(outer.width / 1280, outer.height / 720);
+        const err = Math.max(
+          Math.abs(rect.width - 1280 * scale),
+          Math.abs(rect.height - 720 * scale),
+          Math.abs(rect.left - outer.left - (outer.width - rect.width) / 2),
+          Math.abs(rect.top - outer.top - (outer.height - rect.height) / 2),
+        );
+        if (err >= 1 || !marked()) throw Error("Сбой при изменении размера");
+        p.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+        );
+        await until(() => p.frame === 46 && ready());
+        if (marked()) throw Error("Виден рисунок другого кадра");
+        p.seek(45);
+        await until(() => p.frame === 45 && ready());
+        if (!marked()) throw Error("Рисунок потерян");
+        results.drawing = { frame: 45, geometryError: err, keyboard: true };
+      } finally {
+        if (prior === null) view.contentWindow.localStorage.removeItem(key);
+        else view.contentWindow.localStorage.setItem(key, prior);
+      }
+    } catch (error) {
+      results.error = String(error);
+    }
+    document.querySelector("pre").textContent = JSON.stringify(
+      results,
+      null,
+      2,
+    );
+  </script>
+</html>
