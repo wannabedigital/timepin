@@ -1,0 +1,57 @@
+body {
+  margin: 16px;
+  font:
+    16px system-ui,
+    sans-serif;
+  color: #202828;
+}
+drawing-player {
+  display: grid;
+  gap: 10px;
+  background: white;
+  padding: 8px;
+}
+.viewport {
+  height: 65vh;
+  background: #151715;
+  display: grid;
+  place-items: center;
+}
+.picture {
+  position: relative;
+}
+.picture video,
+.picture canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.picture canvas {
+  touch-action: none;
+  cursor: crosshair;
+}
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+.frame {
+  width: 6em;
+}
+.width {
+  width: 3em;
+}
+drawing-player:fullscreen {
+  box-sizing: border-box;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+}
+drawing-player:fullscreen .viewport {
+  height: 100%;
+}
