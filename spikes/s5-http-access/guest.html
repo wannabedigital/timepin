@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+  <meta charset="utf-8" /><title>S5 · Гостевой просмотр</title>
+  <form>
+    <label>Имя <input id="name" required maxlength="100" /></label
+    ><button>Открыть видео</button>
+  </form>
+  <video controls muted preload="metadata"></video
+  ><output></output>
+  <script>
+    const invitation = new URLSearchParams(location.hash.slice(1));
+    history.replaceState(null, "", location.pathname);
+    const video = document.querySelector("video");
+    document.querySelector("form").onsubmit = async (event) => {
+      event.preventDefault();
+      const response = await fetch("/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: document.querySelector("#name").value,
+          token: invitation.get("token"),
+          mode: invitation.get("mode") || "cookie",
+        }),
+      });
+      if (response.ok) video.src = (await response.json()).src;
+      else document.querySelector("output").textContent = "Доступ закрыт";
+    };
+  </script>
+</html>
