@@ -23,7 +23,9 @@ export class DrawingPlayer extends HTMLElement {
       </div><output aria-live="polite"></output>`;
     this.video = this.querySelector("video");
     this.canvas = this.querySelector("canvas");
-    this.ctx = this.canvas.getContext("2d");
+    // Стенд многократно читает пиксели. Один режим растеризации нужен и до,
+    // и после чтения, чтобы сравнить исходный штрих с восстановленным.
+    this.ctx = this.canvas.getContext("2d", { willReadFrequently: true });
     this.field = this.querySelector(".frame");
     this.time = this.querySelector(".time");
     this.fps = Number(this.dataset.fpsNum) / Number(this.dataset.fpsDen);
