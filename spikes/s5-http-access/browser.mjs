@@ -105,6 +105,11 @@ async function trial(page, mode) {
   }
   page.off("request", countMedia);
   assert.equal(media.length, requests, "Все запросы плеера должны завершиться");
+  // При отмене до заголовков сервер фиксирует запрос без HTTP-ответа.
+  const cancelled = media.filter(
+    (e) => e.status === 0 && e.body_bytes === 0 && e.range_start === null,
+  );
+  media = media.filter((e) => !cancelled.includes(e));
   assert.ok(
     media.some((e) => e.range_start === 0) &&
       media.some((e) => e.range_start > 0),
@@ -117,7 +122,7 @@ async function trial(page, mode) {
   );
   assert.ok(
     media.every((e) => e.status === 206),
-    "Ожидался частичный ответ",
+    "Ожидался частичный ответ: " + JSON.stringify(media),
   );
   assert.ok(
     media.some((e) => e.range_start > bytes),
@@ -132,6 +137,7 @@ async function trial(page, mode) {
     mode,
     ...playback,
     bytes,
+    cancelledBeforeHeaders: cancelled.length,
     rangeStarts: media.map((e) => e.range_start),
   };
 }
