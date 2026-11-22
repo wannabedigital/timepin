@@ -39,7 +39,7 @@ node serve.mjs                # оставить работать
 
 `node run-browser-matrix.mjs` сам находит установленные браузеры (Chrome, Edge, Firefox, Safari), открывает страницу теста с чистым профилем, ждёт результат, закрывает браузер и печатает сводку (`out/summary.md`). Параметры: `--browsers chrome,edge,firefox,safari`, `--mode frames|main|both`, `--variants ...`, `--timeout-min N`. Режим `--mode pausealign` — сквозной тест паузы (пауза, номер кадра из `mediaTime`, выравнивание, сдвиг в кадрах). Окна браузера не сворачивать: скрытая страница не получает обратных вызовов кадров. Сводка по всем накопленным результатам: `node summarize-results.mjs`.
 
-Полный прогон на новой ОС одной командой: `../run-windows-checks.sh`, инструкция для Claude Code: `../RUNBOOK-WINDOWS.md`.
+Для повторения исторической серии S1 и S2 на Windows из Git Bash запустить `../run-windows-checks.sh`. Проверить наличие результатов для каждого браузера в `out/`.
 
 ## Прогон на новой ОС или в новом браузере вручную (чек-лист)
 

@@ -2,7 +2,7 @@
 # Полный прогон оставшихся проверок S1 и S2 на новой ОС (Windows) без участия человека.
 # Запускать из Git Bash в корне репозитория:  ./spikes/run-windows-checks.sh
 # Всё пишется в spikes/_run-logs/ (в git не попадает). Код выхода 0 — все шаги прошли.
-# Подробности и что делать с результатами: spikes/RUNBOOK-WINDOWS.md
+# Условия прогона и команды: spikes/s2-player-seek/README.md
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG="$ROOT/spikes/_run-logs"
